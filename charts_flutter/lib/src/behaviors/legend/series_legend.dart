@@ -24,25 +24,22 @@ import 'package:charts_common/common.dart' as common
         OutsideJustification,
         SeriesLegend,
         SelectionModelType,
+        LegendEntryGenerator,
         TextStyleSpec;
 import 'package:collection/collection.dart' show ListEquality;
-import 'package:flutter/widgets.dart'
-    show BuildContext, EdgeInsets, Widget, hashValues;
+import 'package:flutter/widgets.dart' show BuildContext, EdgeInsets, Widget, hashValues;
 import 'package:meta/meta.dart' show immutable;
 import '../../chart_container.dart' show ChartContainerRenderObject;
-import '../chart_behavior.dart'
-    show BuildableBehavior, ChartBehavior, GestureType;
+import '../chart_behavior.dart' show BuildableBehavior, ChartBehavior, GestureType;
 import 'legend.dart' show TappableLegend;
-import 'legend_content_builder.dart'
-    show LegendContentBuilder, TabularLegendContentBuilder;
+import 'legend_content_builder.dart' show LegendContentBuilder, TabularLegendContentBuilder;
 import 'legend_layout.dart' show TabularLegendLayout;
 
 /// Series legend behavior for charts.
 @immutable
 class SeriesLegend extends ChartBehavior<common.SeriesLegend> {
   static const defaultBehaviorPosition = common.BehaviorPosition.top;
-  static const defaultOutsideJustification =
-      common.OutsideJustification.startDrawArea;
+  static const defaultOutsideJustification = common.OutsideJustification.startDrawArea;
   static const defaultInsideJustification = common.InsideJustification.topStart;
 
   final desiredGestures = new Set<GestureType>();
@@ -51,6 +48,8 @@ class SeriesLegend extends ChartBehavior<common.SeriesLegend> {
 
   /// Builder for creating custom legend content.
   final LegendContentBuilder contentBuilder;
+
+  final common.LegendEntryGenerator legendEntryGenerator;
 
   /// Position of the legend relative to the chart.
   final common.BehaviorPosition position;
@@ -153,29 +152,90 @@ class SeriesLegend extends ChartBehavior<common.SeriesLegend> {
 
     // Set the tabular layout settings to match the position if it is not
     // specified.
-    horizontalFirst ??= (position == common.BehaviorPosition.top ||
-        position == common.BehaviorPosition.bottom ||
-        position == common.BehaviorPosition.inside);
+    horizontalFirst ??=
+        (position == common.BehaviorPosition.top || position == common.BehaviorPosition.bottom || position == common.BehaviorPosition.inside);
     final layoutBuilder = horizontalFirst
-        ? new TabularLegendLayout.horizontalFirst(
-            desiredMaxColumns: desiredMaxColumns, cellPadding: cellPadding)
-        : new TabularLegendLayout.verticalFirst(
-            desiredMaxRows: desiredMaxRows, cellPadding: cellPadding);
+        ? new TabularLegendLayout.horizontalFirst(desiredMaxColumns: desiredMaxColumns, cellPadding: cellPadding)
+        : new TabularLegendLayout.verticalFirst(desiredMaxRows: desiredMaxRows, cellPadding: cellPadding);
 
     return new SeriesLegend._internal(
-        contentBuilder:
-            new TabularLegendContentBuilder(legendLayout: layoutBuilder),
+        contentBuilder: new TabularLegendContentBuilder(legendLayout: layoutBuilder),
         selectionModelType: common.SelectionModelType.info,
         position: position,
         outsideJustification: outsideJustification,
         insideJustification: insideJustification,
         defaultHiddenSeries: defaultHiddenSeries,
         showMeasures: showMeasures ?? false,
-        legendDefaultMeasure:
-            legendDefaultMeasure ?? common.LegendDefaultMeasure.none,
+        legendDefaultMeasure: legendDefaultMeasure ?? common.LegendDefaultMeasure.none,
         measureFormatter: measureFormatter,
         secondaryMeasureFormatter: secondaryMeasureFormatter,
         entryTextStyle: entryTextStyle);
+  }
+
+  /// Create a legend with custom layout and custom legend entry generator
+  ///
+  /// By default, the legend is place above the chart and horizontally aligned
+  /// to the start of the draw area.
+  ///
+  /// [contentBuilder] builder for the custom layout.
+  ///
+  /// [legendEntryGenerator] legend entry generator.
+  ///
+  /// [position] the legend will be positioned relative to the chart. Default
+  /// position is top.
+  ///
+  /// [outsideJustification] justification of the legend relative to the chart
+  /// if the position is top, bottom, left, right. Default to start of the draw
+  /// area.
+  ///
+  /// [insideJustification] justification of the legend relative to the chart if
+  /// the position is inside. Default to top of the chart, start of draw area.
+  /// Start of draw area means left for LTR directionality, and right for RTL.
+  ///
+  /// [defaultHiddenSeries] lists the IDs of series that should be hidden on
+  /// first chart draw.
+  ///
+  /// [showMeasures] show measure values for each series.
+  ///
+  /// [legendDefaultMeasure] if measure should show when there is no selection.
+  /// This is set to none by default (only shows measure for selected data).
+  ///
+  /// [measureFormatter] formats measure value if measures are shown.
+  ///
+  /// [secondaryMeasureFormatter] formats measures if measures are shown for the
+  /// series that uses secondary measure axis.
+  factory SeriesLegend.customLayoutAndEntryGenerator(
+    LegendContentBuilder contentBuilder,
+    common.LegendEntryGenerator legendEntryGenerator, {
+    common.BehaviorPosition position,
+    common.OutsideJustification outsideJustification,
+    common.InsideJustification insideJustification,
+    List<String> defaultHiddenSeries,
+    bool showMeasures,
+    common.LegendDefaultMeasure legendDefaultMeasure,
+    common.MeasureFormatter measureFormatter,
+    common.MeasureFormatter secondaryMeasureFormatter,
+    common.TextStyleSpec entryTextStyle,
+  }) {
+    // Set defaults if empty.
+    position ??= defaultBehaviorPosition;
+    outsideJustification ??= defaultOutsideJustification;
+    insideJustification ??= defaultInsideJustification;
+
+    return new SeriesLegend._internal(
+      contentBuilder: contentBuilder,
+      legendEntryGenerator: legendEntryGenerator,
+      selectionModelType: common.SelectionModelType.info,
+      position: position,
+      outsideJustification: outsideJustification,
+      insideJustification: insideJustification,
+      defaultHiddenSeries: defaultHiddenSeries,
+      showMeasures: showMeasures ?? false,
+      legendDefaultMeasure: legendDefaultMeasure ?? common.LegendDefaultMeasure.none,
+      measureFormatter: measureFormatter,
+      secondaryMeasureFormatter: secondaryMeasureFormatter,
+      entryTextStyle: entryTextStyle,
+    );
   }
 
   /// Create a legend with custom layout.
@@ -233,8 +293,7 @@ class SeriesLegend extends ChartBehavior<common.SeriesLegend> {
       insideJustification: insideJustification,
       defaultHiddenSeries: defaultHiddenSeries,
       showMeasures: showMeasures ?? false,
-      legendDefaultMeasure:
-          legendDefaultMeasure ?? common.LegendDefaultMeasure.none,
+      legendDefaultMeasure: legendDefaultMeasure ?? common.LegendDefaultMeasure.none,
       measureFormatter: measureFormatter,
       secondaryMeasureFormatter: secondaryMeasureFormatter,
       entryTextStyle: entryTextStyle,
@@ -243,6 +302,7 @@ class SeriesLegend extends ChartBehavior<common.SeriesLegend> {
 
   SeriesLegend._internal({
     this.contentBuilder,
+    this.legendEntryGenerator,
     this.selectionModelType,
     this.position,
     this.outsideJustification,
@@ -256,8 +316,7 @@ class SeriesLegend extends ChartBehavior<common.SeriesLegend> {
   });
 
   @override
-  common.SeriesLegend<D> createCommonBehavior<D>() =>
-      new _FlutterSeriesLegend<D>(this);
+  common.SeriesLegend<D> createCommonBehavior<D>() => new _FlutterSeriesLegend<D>(this);
 
   @override
   void updateCommonBehavior(common.SeriesLegend commonBehavior) {
@@ -274,6 +333,7 @@ class SeriesLegend extends ChartBehavior<common.SeriesLegend> {
     return o is SeriesLegend &&
         selectionModelType == o.selectionModelType &&
         contentBuilder == o.contentBuilder &&
+        legendEntryGenerator == o.legendEntryGenerator &&
         position == o.position &&
         outsideJustification == o.outsideJustification &&
         insideJustification == o.insideJustification &&
@@ -287,33 +347,22 @@ class SeriesLegend extends ChartBehavior<common.SeriesLegend> {
 
   @override
   int get hashCode {
-    return hashValues(
-        selectionModelType,
-        contentBuilder,
-        position,
-        outsideJustification,
-        insideJustification,
-        defaultHiddenSeries,
-        showMeasures,
-        legendDefaultMeasure,
-        measureFormatter,
-        secondaryMeasureFormatter,
-        entryTextStyle);
+    return hashValues(selectionModelType, contentBuilder, legendEntryGenerator, position, outsideJustification, insideJustification,
+        defaultHiddenSeries, showMeasures, legendDefaultMeasure, measureFormatter, secondaryMeasureFormatter, entryTextStyle);
   }
 }
 
 /// Flutter specific wrapper on the common Legend for building content.
-class _FlutterSeriesLegend<D> extends common.SeriesLegend<D>
-    implements BuildableBehavior, TappableLegend {
+class _FlutterSeriesLegend<D> extends common.SeriesLegend<D> implements BuildableBehavior, TappableLegend {
   SeriesLegend config;
 
   _FlutterSeriesLegend(this.config)
       : super(
-          selectionModelType: config.selectionModelType,
-          measureFormatter: config.measureFormatter,
-          secondaryMeasureFormatter: config.secondaryMeasureFormatter,
-          legendDefaultMeasure: config.legendDefaultMeasure,
-        ) {
+            selectionModelType: config.selectionModelType,
+            measureFormatter: config.measureFormatter,
+            secondaryMeasureFormatter: config.secondaryMeasureFormatter,
+            legendDefaultMeasure: config.legendDefaultMeasure,
+            legendEntryGenerator: config.legendEntryGenerator) {
     super.defaultHiddenSeries = config.defaultHiddenSeries;
     super.entryTextStyle = config.entryTextStyle;
   }
@@ -327,26 +376,20 @@ class _FlutterSeriesLegend<D> extends common.SeriesLegend<D>
   common.BehaviorPosition get position => config.position;
 
   @override
-  common.OutsideJustification get outsideJustification =>
-      config.outsideJustification;
+  common.OutsideJustification get outsideJustification => config.outsideJustification;
 
   @override
-  common.InsideJustification get insideJustification =>
-      config.insideJustification;
+  common.InsideJustification get insideJustification => config.insideJustification;
 
   @override
   Widget build(BuildContext context) {
-    final hasSelection =
-        legendState.legendEntries.any((entry) => entry.isSelected);
+    final hasSelection = legendState.legendEntries.any((entry) => entry.isSelected);
 
     // Show measures if [showMeasures] is true and there is a selection or if
     // showing measures when there is no selection.
-    final showMeasures = config.showMeasures &&
-        (hasSelection ||
-            legendDefaultMeasure != common.LegendDefaultMeasure.none);
+    final showMeasures = config.showMeasures && (hasSelection || legendDefaultMeasure != common.LegendDefaultMeasure.none);
 
-    return config.contentBuilder
-        .build(context, legendState, this, showMeasures: showMeasures);
+    return config.contentBuilder.build(context, legendState, this, showMeasures: showMeasures);
   }
 
   @override
